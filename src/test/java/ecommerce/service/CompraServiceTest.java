@@ -234,3 +234,4 @@ public class CompraServiceTest {
     assertEquals(esperado, custoTotal);
   }
 }
+//teste
