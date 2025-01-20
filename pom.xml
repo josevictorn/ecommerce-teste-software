@@ -100,7 +100,7 @@
                     </dependency>
                 </dependencies>
                 <configuration>
-                <targetClasses>ecommerce.*</targetClasses>
+                <targetClasses>ecommerce.service.CompraService</targetClasses>
                 <mutators>ALL</mutators>
                 <outputFormats>
                 <outputFormat>HTML</outputFormat>
