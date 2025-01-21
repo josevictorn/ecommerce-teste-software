@@ -117,8 +117,8 @@ public class CompraService {
 			case PRATA:
 				valorFrete = valorFrete.multiply(BigDecimal.valueOf(0.5)); // 50% de desconto
 				break;
-			case BRONZE:
-				break; // Sem desconto adicional
+			//case BRONZE:
+			//	break; // Sem desconto adicional
 			default:
 				break; // Sem desconto adicional
 		}
