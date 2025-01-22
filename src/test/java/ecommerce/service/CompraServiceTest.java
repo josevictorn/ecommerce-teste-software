@@ -1,31 +1,118 @@
 package ecommerce.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Collections;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
+import ecommerce.dto.CompraDTO;
+import ecommerce.dto.DisponibilidadeDTO;
+import ecommerce.dto.EstoqueBaixaDTO;
+import ecommerce.dto.PagamentoDTO;
 import ecommerce.entity.CarrinhoDeCompras;
 import ecommerce.entity.Cliente;
 import ecommerce.entity.ItemCompra;
 import ecommerce.entity.Produto;
 import ecommerce.entity.TipoCliente;
+import ecommerce.external.IEstoqueExternal;
+import ecommerce.external.IPagamentoExternal;
 
 public class CompraServiceTest {
 
-  private CompraService compraService;
+  // private CompraService compraService;
 
-  @BeforeEach
-  void setUp() {
-      compraService = new CompraService(null, null, null, null); // Dependências são irrelevantes para este teste.
-  }
+  // @BeforeEach
+  // void setUp() {
+  //     compraService = new CompraService(null, null, null, null); // Dependências são irrelevantes para este teste.
+  // }
+//gustavo
+   @Mock
+    private CarrinhoDeComprasService carrinhoService;
 
+    @Mock
+    private ClienteService clienteService;
+
+    @Mock
+    private IEstoqueExternal estoqueExternal;
+
+    @Mock
+    private IPagamentoExternal pagamentoExternal;
+
+    @InjectMocks
+    private CompraService compraService;
+
+    @BeforeEach
+    void setUp() {
+        // Inicializa os mocks do Mockito
+        MockitoAnnotations.openMocks(this);
+    }
+
+ @Test
+    void finalizarCompra_comCarrinhoValido() {
+        // Configurar cliente
+        Cliente cliente = new Cliente();
+        cliente.setId(1L);
+        cliente.setTipo(TipoCliente.BRONZE); // Define o tipo do cliente
+
+        // Configurar produto e itens no carrinho
+        Produto produto = new Produto();
+        produto.setId(1L);
+        produto.setPreco(BigDecimal.valueOf(100));
+        produto.setPeso(5);
+
+        ItemCompra item = new ItemCompra();
+        item.setProduto(produto);
+        item.setQuantidade(2L);
+
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras(1L, cliente, Arrays.asList(item), LocalDate.now());
+
+        // Criar uma instância de DisponibilidadeDTO válida
+        DisponibilidadeDTO disponibilidade = new DisponibilidadeDTO(true, Collections.emptyList());
+
+        // Criar uma instância de PagamentoDTO válida
+        PagamentoDTO pagamento = new PagamentoDTO(true, 12345L);
+
+        // Criar uma instância de EstoqueBaixaDTO válida
+        EstoqueBaixaDTO baixaDTO = new EstoqueBaixaDTO(true);
+
+        // Configurar comportamento dos mocks
+        when(clienteService.buscarPorId(1L)).thenReturn(cliente); // Cliente encontrado
+        when(carrinhoService.buscarPorCarrinhoIdEClienteId(eq(1L), eq(cliente))).thenReturn(carrinho); // Carrinho encontrado
+        when(estoqueExternal.verificarDisponibilidade(anyList(), anyList())).thenReturn(disponibilidade); // Estoque disponível
+        when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble())).thenReturn(pagamento); // Pagamento autorizado
+        when(estoqueExternal.darBaixa(anyList(), anyList())).thenReturn(baixaDTO); // Estoque atualizado com sucesso
+
+        // Executar o método
+        CompraDTO resultado = compraService.finalizarCompra(1L, 1L);
+
+        // Verificar interações e resultado
+        verify(clienteService, times(1)).buscarPorId(1L);
+        verify(carrinhoService, times(1)).buscarPorCarrinhoIdEClienteId(eq(1L), eq(cliente));
+        verify(estoqueExternal, times(1)).verificarDisponibilidade(anyList(), anyList());
+        verify(pagamentoExternal, times(1)).autorizarPagamento(anyLong(), anyDouble());
+        verify(estoqueExternal, times(1)).darBaixa(anyList(), anyList());
+        assertTrue(resultado.sucesso());
+        assertEquals("Compra finalizada com sucesso.", resultado.mensagem());
+    }
+//jose
   @Test
   void calcularCustoTotal_clienteOuro_comFreteGratis_semDescontoItens_pesoAte5kg() {
     Cliente cliente = new Cliente();
