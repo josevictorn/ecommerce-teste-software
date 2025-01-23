@@ -390,5 +390,39 @@ public class CompraServiceTest {
       assertEquals(esperado, custoTotal);
   }
 
+  @Test
+  void calcularCustoTotal_clientePrata_semFreteZero_pesoAbaixo5kg() {
+      Cliente cliente = new Cliente();
+      cliente.setTipo(TipoCliente.PRATA);
+
+      Produto produto = new Produto();
+      produto.setPeso(1); // Peso unitário do produto (1kg)
+      produto.setPreco(BigDecimal.valueOf(100)); // Preço unitário do produto
+
+   
+      ItemCompra item = new ItemCompra();
+      item.setProduto(produto);
+      item.setQuantidade(3L); // Quantidade de itens (3 produtos de 100, total de R$ 300)
+
+    
+      List<ItemCompra> itens = Arrays.asList(item);
+    
+      CarrinhoDeCompras carrinho = new CarrinhoDeCompras(
+          1L, 
+          cliente, 
+          itens, 
+          LocalDate.now()
+      );
+      // Cálculo do custo total com desconto de 50% no frete (cliente Prata)
+      BigDecimal custoTotal = compraService.calcularCustoTotal(carrinho).setScale(1, RoundingMode.HALF_UP);
+
+      // Cálculo esperado: 100 * 3 = 300  (sem desconto)
+      // Peso total: 3 * 1 = 3kg  (menor que 5kg, então o frete será 0)
+      // Frete: 3kg * 0 = 0
+      BigDecimal esperado = BigDecimal.valueOf(100 * 3).add(BigDecimal.valueOf(0)).setScale(1, RoundingMode.HALF_UP);
+      // Verificando se o custo total calculado é igual ao esperado
+      assertEquals(esperado, custoTotal);
+  }
+
 }
 //teste
