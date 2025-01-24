@@ -1,8 +1,9 @@
 package ecommerce.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList; 
 import java.util.List;
-import java.util.stream.Collectors;
+//import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -41,9 +42,21 @@ public class CompraService {
 		Cliente cliente = clienteService.buscarPorId(clienteId);
 		CarrinhoDeCompras carrinho = carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente);
 
-		List<Long> produtosIds = carrinho.getItens().stream().map(i -> i.getProduto().getId())
-				.collect(Collectors.toList());
-		List<Long> produtosQtds = carrinho.getItens().stream().map(i -> i.getQuantidade()).collect(Collectors.toList());
+		// List<Long> produtosIds = carrinho.getItens().stream().map(i -> i.getProduto().getId())
+		// 		.collect(Collectors.toList());
+		// List<Long> produtosQtds = carrinho.getItens().stream().map(i -> i.getQuantidade()).collect(Collectors.toList());
+
+		List<Long> produtosIds = new ArrayList<>(); 
+
+		List<Long> produtosQtds = new ArrayList<>();
+
+		for (ItemCompra item : carrinho.getItens()) { 
+
+		    produtosIds.add(item.getProduto().getId());
+
+		    produtosQtds.add(item.getQuantidade());
+
+		}
 
 		DisponibilidadeDTO disponibilidade = estoqueExternal.verificarDisponibilidade(produtosIds, produtosQtds);
 
