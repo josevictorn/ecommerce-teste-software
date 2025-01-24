@@ -1,6 +1,7 @@
 package ecommerce.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -629,6 +630,276 @@ public class CompraServiceTest {
       BigDecimal esperado = BigDecimal.valueOf(100).setScale(1, RoundingMode.HALF_UP);
 
       assertEquals(esperado, custoTotal);
+  }
+
+  @Test
+  void finalizarCompra_disponibilidadeItens() {
+      // Cliente
+      Cliente cliente = new Cliente();
+      cliente.setId(1L);
+      cliente.setTipo(TipoCliente.BRONZE);
+
+      // Produto e itens no carrinho
+      Produto produto = new Produto();
+      produto.setId(1L);
+      produto.setPreco(BigDecimal.valueOf(50));
+      produto.setPeso(2);
+
+      ItemCompra item = new ItemCompra();
+      item.setProduto(produto);
+      item.setQuantidade(2L);
+
+      CarrinhoDeCompras carrinho = new CarrinhoDeCompras(1L, cliente, Arrays.asList(item), LocalDate.now());
+
+      // Cria uma instância de DisponibilidadeDTO
+      DisponibilidadeDTO disponibilidade = new DisponibilidadeDTO(false, Collections.emptyList());
+
+      // Configurar mocks
+      when(clienteService.buscarPorId(1L)).thenReturn(cliente);
+      when(carrinhoService.buscarPorCarrinhoIdEClienteId(eq(1L), eq(cliente))).thenReturn(carrinho);
+      when(estoqueExternal.verificarDisponibilidade(anyList(), anyList())).thenReturn(disponibilidade);
+
+      // Tentar finalizar a compra 
+      IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+          compraService.finalizarCompra(1L, 1L);
+      });
+
+      // Verificar exceção
+      assertEquals("Itens fora de estoque.", exception.getMessage());
+  }
+  
+  
+  @Test
+  void finalizarCompra_comErro() {
+      // Cliente
+      Cliente cliente = new Cliente();
+      cliente.setId(1L);
+      cliente.setTipo(TipoCliente.BRONZE);
+
+      // Configurar produto e itens no carrinho
+      Produto produto = new Produto();
+      produto.setId(1L);
+      produto.setPreco(BigDecimal.valueOf(50));
+      produto.setPeso(2);
+
+      ItemCompra item = new ItemCompra();
+      item.setProduto(produto);
+      item.setQuantidade(2L);
+
+      CarrinhoDeCompras carrinho = new CarrinhoDeCompras(1L, cliente, Arrays.asList(item), LocalDate.now());
+
+      // Criar uma instância de DisponibilidadeDTO
+      DisponibilidadeDTO disponibilidade = new DisponibilidadeDTO(true, Collections.emptyList());
+
+      // Criar uma instância de PagamentoDTO 
+      PagamentoDTO pagamento = new PagamentoDTO(true, 10L);
+
+      // Criar uma instância de EstoqueBaixaDTO
+      EstoqueBaixaDTO baixaDTO = new EstoqueBaixaDTO(false);
+
+      // Configurar mocks
+      when(clienteService.buscarPorId(1L)).thenReturn(cliente);
+      when(carrinhoService.buscarPorCarrinhoIdEClienteId(eq(1L), eq(cliente))).thenReturn(carrinho);
+      when(estoqueExternal.verificarDisponibilidade(anyList(), anyList())).thenReturn(disponibilidade);
+      when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble())).thenReturn(pagamento);
+      when(estoqueExternal.darBaixa(anyList(), anyList())).thenReturn(baixaDTO);
+
+      // Tentar finalizar
+      IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+          compraService.finalizarCompra(1L, 1L);
+      });
+
+      // Verificar a mensagem da exceção
+      assertEquals("Erro ao dar baixa no estoque.", exception.getMessage());
+  }
+  
+  @Test
+  void finalizarCompra_CancelaPagamento() {
+      // Configurar cliente
+      Cliente cliente = new Cliente();
+      cliente.setId(1L); 
+      cliente.setTipo(TipoCliente.BRONZE);
+
+      // Configurar produto e itens no carrinho
+      Produto produto = new Produto();
+      produto.setId(1L);
+      produto.setPreco(BigDecimal.valueOf(50));
+      produto.setPeso(2);
+
+      ItemCompra item = new ItemCompra();
+      item.setProduto(produto);
+      item.setQuantidade(2L);
+
+      CarrinhoDeCompras carrinho = new CarrinhoDeCompras(1L, cliente, Arrays.asList(item), LocalDate.now());
+
+      // Criar uma instância de DisponibilidadeDTO
+      DisponibilidadeDTO disponibilidade = new DisponibilidadeDTO(true, Collections.emptyList());
+
+      // Criar uma instância de PagamentoDTO 
+      PagamentoDTO pagamento = new PagamentoDTO(true, 10L);
+
+      // Criar uma instância que simula erro ao dar baixa
+      EstoqueBaixaDTO baixaDTO = new EstoqueBaixaDTO(false);
+
+      // Configurar mocks
+      when(clienteService.buscarPorId(1L)).thenReturn(cliente);
+      when(carrinhoService.buscarPorCarrinhoIdEClienteId(eq(1L), eq(cliente))).thenReturn(carrinho);
+      when(estoqueExternal.verificarDisponibilidade(anyList(), anyList())).thenReturn(disponibilidade);
+      when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble())).thenReturn(pagamento);
+      when(estoqueExternal.darBaixa(anyList(), anyList())).thenReturn(baixaDTO);
+
+      // Tenta Finalizar
+      IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+          compraService.finalizarCompra(1L, 1L);
+      });
+
+      // Verificar  exceção
+      assertEquals("Erro ao dar baixa no estoque.", exception.getMessage());
+
+      // Verificar se o método cancelarPagamento foi chamado com o ID do cliente e o ID da transação
+      verify(pagamentoExternal, times(1)).cancelarPagamento(eq(cliente.getId()), eq(pagamento.transacaoId()));
+  }
+  
+  
+  @Test
+  void finalizarCompra_compraFinalizadaSucesso() {
+      // Configurar cliente
+      Cliente cliente = new Cliente();
+      cliente.setId(1L);
+      cliente.setTipo(TipoCliente.BRONZE);
+
+      // Configurar produto e itens no carrinho
+      Produto produto = new Produto();
+      produto.setId(1L);
+      produto.setPreco(BigDecimal.valueOf(50));
+      produto.setPeso(2);
+
+      ItemCompra item = new ItemCompra();
+      item.setProduto(produto);
+      item.setQuantidade(2L);
+
+      CarrinhoDeCompras carrinho = new CarrinhoDeCompras(1L, cliente, Arrays.asList(item), LocalDate.now());
+
+      // Criar uma instância de DisponibilidadeDTO 
+      DisponibilidadeDTO disponibilidade = new DisponibilidadeDTO(true, Collections.emptyList());
+
+      // Criar uma instância de PagamentoDTO v
+      PagamentoDTO pagamento = new PagamentoDTO(true, 10L);
+
+      // Criar uma instância de EstoqueBaixaDTO 
+      EstoqueBaixaDTO baixaDTO = new EstoqueBaixaDTO(true);
+
+      // Configurar mocks
+      when(clienteService.buscarPorId(1L)).thenReturn(cliente);
+      when(carrinhoService.buscarPorCarrinhoIdEClienteId(eq(1L), eq(cliente))).thenReturn(carrinho);
+      when(estoqueExternal.verificarDisponibilidade(anyList(), anyList())).thenReturn(disponibilidade);
+      when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble())).thenReturn(pagamento);
+      when(estoqueExternal.darBaixa(anyList(), anyList())).thenReturn(baixaDTO);
+
+      // Executar o método
+      CompraDTO resultado = compraService.finalizarCompra(1L, 1L);
+
+      // Verificar que o CompraDTO foi retornado 
+      assertTrue(resultado.sucesso());
+      assertEquals("Compra finalizada com sucesso.", resultado.mensagem());
+      assertEquals(10L, resultado.transacaoPagamentoId()); 
+  }
+  
+  
+  @Test
+  void finalizarCompra_pagamentoNaoAutorizado() {
+      // Configurar cliente
+      Cliente cliente = new Cliente();
+      cliente.setId(1L);
+      cliente.setTipo(TipoCliente.BRONZE);
+
+      // Configurar produto e itens no carrinho
+      Produto produto = new Produto();
+      produto.setId(1L);
+      produto.setPreco(BigDecimal.valueOf(50));
+      produto.setPeso(2);
+
+      ItemCompra item = new ItemCompra();
+      item.setProduto(produto);
+      item.setQuantidade(2L);
+
+      CarrinhoDeCompras carrinho = new CarrinhoDeCompras(1L, cliente, Arrays.asList(item), LocalDate.now());
+
+      // Criar uma instância de DisponibilidadeDTO
+      DisponibilidadeDTO disponibilidade = new DisponibilidadeDTO(true, Collections.emptyList());
+
+      // Criar uma instância de PagamentoDTO válida, mas com pagamento não autorizado
+      PagamentoDTO pagamento = new PagamentoDTO(false, 10L);
+
+      // Criar uma instância de EstoqueBaixaDTO válida
+      EstoqueBaixaDTO baixaDTO = new EstoqueBaixaDTO(true);
+
+      // Configurar mocks
+      when(clienteService.buscarPorId(1L)).thenReturn(cliente);
+      when(carrinhoService.buscarPorCarrinhoIdEClienteId(eq(1L), eq(cliente))).thenReturn(carrinho);
+      when(estoqueExternal.verificarDisponibilidade(anyList(), anyList())).thenReturn(disponibilidade);
+      when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble())).thenReturn(pagamento);
+      when(estoqueExternal.darBaixa(anyList(), anyList())).thenReturn(baixaDTO);
+
+      // Tentar finalizar
+      Exception exception = assertThrows(IllegalStateException.class, () -> {
+          compraService.finalizarCompra(1L, 1L);
+      });
+
+      // Verificar exceção
+      assertEquals("Pagamento não autorizado.", exception.getMessage());
+  }
+  
+  
+  @Test
+  void finalizarCompra_autorizadoPagamento() {
+      // Configurar cliente
+      Cliente cliente = new Cliente();
+      cliente.setId(1L);
+      cliente.setTipo(TipoCliente.BRONZE);
+
+      // Configurar produto e itens no carrinho
+      Produto produto = new Produto();
+      produto.setId(1L);
+      produto.setPreco(BigDecimal.valueOf(100));
+      produto.setPeso(5);
+
+      ItemCompra item = new ItemCompra();
+      item.setProduto(produto);
+      item.setQuantidade(2L);
+
+      CarrinhoDeCompras carrinho = new CarrinhoDeCompras(1L, cliente, Arrays.asList(item), LocalDate.now());
+
+      // Criar uma instância de DisponibilidadeDTO
+      DisponibilidadeDTO disponibilidade = new DisponibilidadeDTO(true, Collections.emptyList());
+
+      // Criar uma instância de PagamentoDTO
+      PagamentoDTO pagamento = new PagamentoDTO(true, 120L);
+
+      // Criar uma instância de EstoqueBaixaDTO 
+      EstoqueBaixaDTO baixaDTO = new EstoqueBaixaDTO(true);
+
+      // Configurar comportamento dos mocks
+      when(clienteService.buscarPorId(1L)).thenReturn(cliente); // Cliente encontrado
+      when(carrinhoService.buscarPorCarrinhoIdEClienteId(eq(1L), eq(cliente))).thenReturn(carrinho); // Carrinho encontrado
+      when(estoqueExternal.verificarDisponibilidade(anyList(), anyList())).thenReturn(disponibilidade); // Estoque disponível
+      when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble())).thenReturn(pagamento); // Pagamento autorizado
+      when(estoqueExternal.darBaixa(anyList(), anyList())).thenReturn(baixaDTO); // Estoque atualizado com sucesso
+
+      // Executar o método
+      CompraDTO resultado = compraService.finalizarCompra(1L, 1L);
+
+      // Verificar interações e resultado
+      verify(clienteService, times(1)).buscarPorId(1L);
+      verify(carrinhoService, times(1)).buscarPorCarrinhoIdEClienteId(eq(1L), eq(cliente));
+      verify(estoqueExternal, times(1)).verificarDisponibilidade(anyList(), anyList());
+      verify(pagamentoExternal, times(1)).autorizarPagamento(eq(1L), eq(220.0d)); // Atualize para 220.0d se esse for o valor correto
+      verify(estoqueExternal, times(1)).darBaixa(anyList(), anyList());
+
+      assertTrue(resultado.sucesso());
+      
+      // Verificar exceção
+      assertEquals("Compra finalizada com sucesso.", resultado.mensagem());
   }
 
 }
